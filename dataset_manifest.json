@@ -1,0 +1,55 @@
+{
+  "version": "Extraktor V3 OCR",
+  "html": "extraktor_v3_ocr_full.html",
+  "samples": [
+    {
+      "file": "01_text_current_medications.pdf",
+      "type": "text-layer/OCRed",
+      "expected_medications": [
+        "Metformin",
+        "Atorvastatin",
+        "Amlodipine"
+      ]
+    },
+    {
+      "file": "02_text_stopped_medications.pdf",
+      "type": "text-layer/OCRed",
+      "expected_medications": [
+        "Aspirin",
+        "Ibuprofen",
+        "Pantoprazole"
+      ]
+    },
+    {
+      "file": "03_text_german_mixed_medications.pdf",
+      "type": "text-layer/OCRed",
+      "expected_medications": [
+        "Bisoprolol",
+        "Torasemid",
+        "Diclofenac"
+      ]
+    },
+    {
+      "file": "04_image_only_scanned_med_list.pdf",
+      "type": "image-only/scanned",
+      "expected_medications": [
+        "Levothyroxine",
+        "Omeprazole",
+        "Insulin glargine"
+      ]
+    },
+    {
+      "file": "05_image_only_discharge_scan.pdf",
+      "type": "image-only/scanned",
+      "expected_medications": [
+        "Ramipril",
+        "Furosemide",
+        "Apixaban"
+      ]
+    }
+  ],
+  "notes": [
+    "Image-only PDFs intentionally have no text layer. OCR fallback should activate when OCR fallback is Auto or Always.",
+    "Synthetic dataset only. Not real patient data."
+  ]
+}
