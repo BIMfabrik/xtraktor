@@ -1,0 +1,223 @@
+name: Generate full extractor assets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/generate-full-assets.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install PDF tooling
+        run: python -m pip install --upgrade reportlab pillow
+
+      - name: Generate app and sample PDFs
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          from reportlab.pdfgen import canvas
+          from reportlab.lib.pagesizes import A4
+          from reportlab.lib.units import mm
+          from PIL import Image, ImageDraw, ImageFont
+
+          root = Path('.')
+          samples = root / 'sample_pdfs'
+          docs = root / 'docs'
+          samples.mkdir(exist_ok=True)
+          docs.mkdir(exist_ok=True)
+
+          html = r'''<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Xtraktor — Local PDF Medication Extractor</title>
+<style>
+:root{--bg:#0b1120;--panel:#111827;--soft:#1f2937;--text:#e5e7eb;--muted:#9ca3af;--border:#334155;--accent:#60a5fa;--ok:#86efac;--warn:#fde68a;--danger:#fca5a5}html[data-theme=light]{--bg:#f3f6fb;--panel:#fff;--soft:#f8fafc;--text:#111827;--muted:#4b5563;--border:#d9e2ef;--accent:#2563eb;--ok:#047857;--warn:#92400e;--danger:#b91c1c}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top left,rgba(96,165,250,.18),transparent 28rem),var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.45}header{position:sticky;top:0;z-index:2;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:16px 20px}main{display:grid;grid-template-columns:380px minmax(0,1fr) 410px;gap:16px;max-width:1660px;margin:auto;padding:16px 20px}.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 18px 45px rgba(0,0,0,.18)}h1,h2,h3{margin:0 0 10px}.small,.muted{color:var(--muted);font-size:13px}.drop{border:2px dashed var(--border);border-radius:16px;padding:26px;text-align:center;cursor:pointer;background:var(--soft)}.drop.over{border-color:var(--accent)}input,select,textarea,button{width:100%;border:1px solid var(--border);border-radius:12px;background:var(--soft);color:var(--text);padding:10px;font:inherit;margin:6px 0 12px}textarea{min-height:100px}button{cursor:pointer;font-weight:750}button.primary{background:linear-gradient(135deg,#2563eb,#0ea5e9);color:#fff}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.btnrow{display:flex;gap:8px;flex-wrap:wrap}.btnrow button{width:auto}.pill{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border);border-radius:999px;padding:5px 9px;margin:3px;color:var(--muted);font-size:12px}.pill.ok{color:var(--ok);background:rgba(34,197,94,.12)}.pill.warn{color:var(--warn);background:rgba(245,158,11,.14)}.pill.danger{color:var(--danger);background:rgba(239,68,68,.14)}.progress{height:12px;border:1px solid var(--border);border-radius:999px;overflow:hidden;background:var(--soft);margin:8px 0}.bar{height:100%;width:0%;background:linear-gradient(90deg,#38bdf8,#2563eb);transition:.2s}.bar.ocr{background:linear-gradient(90deg,#f59e0b,#ef4444)}.bar.ai{background:linear-gradient(90deg,#8b5cf6,#ec4899)}.bar.done{background:linear-gradient(90deg,#22c55e,#86efac)}.bar.err{background:linear-gradient(90deg,#ef4444,#991b1b)}pre{white-space:pre-wrap;word-break:break-word;background:#020617;color:#cbd5e1;border:1px solid var(--border);border-radius:12px;padding:12px;max-height:520px;overflow:auto}.tabbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.tabbar button{width:auto;border-radius:999px;padding:8px 12px}.tabbar button.active{border-color:var(--accent);color:var(--accent)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid var(--border);padding:8px;text-align:left;vertical-align:top}th{color:var(--muted);font-size:11px;text-transform:uppercase}.tablewrap{max-height:460px;overflow:auto;border:1px solid var(--border);border-radius:12px}.empty{border:1px dashed var(--border);border-radius:12px;padding:20px;text-align:center;color:var(--muted);background:var(--soft)}@media(max-width:1200px){main{grid-template-columns:1fr}.right{grid-row:auto}}@media print{header,.left,.right,.btnrow,.tabbar{display:none}main{display:block}.card{box-shadow:none;border:0}}
+</style>
+</head>
+<body>
+<header><h1>Xtraktor</h1><div class="muted">Local browser PDF medication extractor with OCR fallback, rules mode, evidence, exports, and sample PDFs.</div></header>
+<main>
+<section class="left card">
+<h2>Input</h2>
+<div id="drop" class="drop"><strong>Drop PDF here</strong><br><span class="small">or click to choose. Text-layer and image-only PDFs supported.</span></div>
+<input id="file" type="file" accept="application/pdf" hidden>
+<label>Engine</label><select id="engine"><option value="rules" selected>Rules only — fastest</option><option value="hybrid">Hybrid — rules + optional AI</option><option value="webllm">WebLLM — may fail on some GPUs</option></select>
+<div class="row"><div><label>Max pages</label><input id="maxPages" type="number" value="80"></div><div><label>OCR max pages</label><input id="ocrPages" type="number" value="8"></div></div>
+<label>OCR mode</label><select id="ocrMode"><option value="auto" selected>Auto if text layer weak</option><option value="always">Always OCR</option><option value="off">Off</option></select>
+<label>Keywords</label><textarea id="keywords">medication, medikament, medikamente, therapy, dose, mg, mcg, µg, tablet, capsule, stopped, discontinued, ended, until, bis, abgesetzt, weiterführen, current, discharge medication</textarea>
+<div class="btnrow"><button class="primary" id="run">Extract</button><button id="clear">Clear</button><button id="theme">Theme</button></div>
+<p class="small">Clinical review is mandatory. This is not a medical device.</p>
+</section>
+<section class="card">
+<h2>Results</h2>
+<div id="badges"><span class="pill ok">Local processing: active</span><span id="ocrBadge" class="pill warn">OCR: ready</span><span id="gpuBadge" class="pill warn">WebLLM: optional</span></div>
+<div class="tablewrap" id="tablewrap" style="display:none"><table><thead><tr><th>Name</th><th>Dose</th><th>Start</th><th>End</th><th>Status</th><th>Evidence</th></tr></thead><tbody id="tbody"></tbody></table></div>
+<div class="empty" id="empty">No extraction yet.</div>
+<h3>Bullets</h3><div id="bullets" class="empty">Medication bullets will appear here.</div>
+<div class="btnrow"><button id="copyJson">Copy JSON</button><button id="downloadJson">Download JSON</button><button id="downloadCsv">Download CSV</button></div>
+</section>
+<section class="right card">
+<h2>Status</h2>
+<div><strong id="phase">Idle</strong> <span id="pct" class="small">0%</span></div><div class="progress"><div id="bar" class="bar"></div></div>
+<pre id="status">Ready.</pre>
+<div class="tabbar"><button class="active" data-tab="json">JSON</button><button data-tab="evidence">Evidence</button><button data-tab="text">Text</button><button data-tab="raw">Raw</button></div>
+<pre id="json" class="tab">{}</pre><pre id="evidence" class="tab" hidden></pre><pre id="text" class="tab" hidden></pre><pre id="raw" class="tab" hidden></pre>
+<h3>Sample PDFs</h3><ul class="small"><li><a href="sample_pdfs/01_text_current_medications.pdf">01 text current</a></li><li><a href="sample_pdfs/02_text_stopped_medications.pdf">02 text stopped</a></li><li><a href="sample_pdfs/03_text_german_mixed_medications.pdf">03 German mixed</a></li><li><a href="sample_pdfs/04_image_only_scanned_med_list.pdf">04 image-only scan</a></li><li><a href="sample_pdfs/05_image_only_discharge_scan.pdf">05 image-only discharge</a></li></ul>
+</section>
+</main>
+<script type="module">
+import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.296/build/pdf.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.296/build/pdf.worker.mjs';
+const $=id=>document.getElementById(id);let selected=null,result={medications:[],warnings:[]};
+function log(m,t=''){const s=$('status');if(s.textContent==='Ready.')s.textContent='';s.textContent+=(s.textContent?'\n':'')+new Date().toLocaleTimeString()+(t?' ['+t+'] ':' ')+m;s.scrollTop=s.scrollHeight}
+function progress(p,ph='PDF'){p=Math.max(0,Math.min(100,p));$('bar').style.width=p+'%';$('pct').textContent=Math.round(p)+'%';$('phase').textContent=ph;$('bar').className='bar '+(ph.includes('OCR')?'ocr':ph.includes('AI')?'ai':ph.includes('Done')?'done':ph.includes('Error')?'err':'')}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function kw(){return $('keywords').value.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean)}
+function score(line){let l=line.toLowerCase(),s=0;for(const k of kw())if(l.includes(k))s+=k.length>5?2:1;if(/\b\d+(?:[.,]\d+)?\s*(mg|mcg|µg|g|ml|iu|units?)\b/i.test(line))s+=5;if(/\b(stop|stopped|discontinued|ended|current|continue|abgesetzt|beendet|bis|weiterführen)\b/i.test(line))s+=3;return s}
+async function pdfText(file){const data=new Uint8Array(await file.arrayBuffer());const pdf=await pdfjsLib.getDocument({data}).promise;let out='',max=Math.min(+$('maxPages').value||80,pdf.numPages);for(let i=1;i<=max;i++){progress(i/max*35,'PDF text');const page=await pdf.getPage(i);const c=await page.getTextContent();let items=c.items.map(x=>x.str).filter(Boolean);out+='\n--- Page '+i+' ---\n'+items.join(' ')}return out}
+async function ocrPdf(file){progress(36,'Loading OCR');const T=await import('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js');const data=new Uint8Array(await file.arrayBuffer());const pdf=await pdfjsLib.getDocument({data}).promise;let max=Math.min(+$('ocrPages').value||8,pdf.numPages),out='';for(let i=1;i<=max;i++){progress(40+i/max*30,'OCR page '+i+'/'+max);const page=await pdf.getPage(i);const vp=page.getViewport({scale:2});const canvas=document.createElement('canvas');canvas.width=vp.width;canvas.height=vp.height;await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;const r=await T.recognize(canvas,'eng+deu');out+='\n--- OCR Page '+i+' ---\n'+r.data.text}return out}
+function chunks(text){let lines=text.split(/\n+/).map(x=>x.trim()).filter(Boolean),sel=[];lines.forEach((l,i)=>{if(score(l)>=2){for(let j=Math.max(0,i-3);j<=Math.min(lines.length-1,i+3);j++)sel.push(lines[j])}});let joined=[...new Set(sel)].join('\n');return joined?joined.split(/(?=\n--- Page|\n--- OCR)/).filter(x=>x.trim()):[text.slice(0,5000)]}
+function extractRules(chs){let meds=[];for(const ch of chs){for(const line of ch.split(/\n+/)){if(score(line)<2)continue;let dose=(line.match(/\b\d+(?:[.,]\d+)?\s*(?:mg|mcg|µg|g|ml|iu|units?)\b/i)||[])[0]||null;let name=line.replace(/^[-•*\d.)\s]+/,'');if(dose)name=name.slice(0,name.toLowerCase().indexOf(dose.toLowerCase())).trim();name=name.split(/[,:;–—]/)[0].replace(/\b(current|previous|medication|medikamente|discharge|home|dose|dosage)\b/ig,'').trim().split(/\s+/).slice(0,4).join(' ');if(!name||name.length<3||name.length>80)continue;let stopped=/\b(stop|stopped|discontinued|ended|until|abgesetzt|beendet|bis)\b/i.test(line);meds.push({name,dose,start_date:null,end_date:stopped?'stopped/see evidence':null,status:stopped?'stopped':/\b(current|continue|daily|weiterführen)\b/i.test(line)?'current':'unknown',evidence_text:line.slice(0,220)})}}
+let map=new Map();for(const m of meds){let k=m.name.toLowerCase();if(!map.has(k))map.set(k,m);else{let p=map.get(k);Object.keys(m).forEach(f=>{if(!p[f]&&m[f])p[f]=m[f]})}}return {medications:[...map.values()].sort((a,b)=>a.name.localeCompare(b.name)),warnings:[]}}
+function render(){let meds=result.medications||[];$('json').textContent=JSON.stringify(result,null,2);$('empty').style.display=meds.length?'none':'block';$('tablewrap').style.display=meds.length?'block':'none';$('tbody').innerHTML=meds.map(m=>`<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.dose||'')}</td><td>${esc(m.start_date||'')}</td><td>${esc(m.end_date||'')}</td><td>${esc(m.status||'unknown')}</td><td class="small">${esc(m.evidence_text||'')}</td></tr>`).join('');$('bullets').className=meds.length?'':'empty';$('bullets').innerHTML=meds.length?'<ul>'+meds.map(m=>`<li><b>${esc(m.name)}</b>${m.dose?' — '+esc(m.dose):''} — ${esc(m.end_date||m.status||'unknown')}<div class="small">Evidence: ${esc(m.evidence_text||'')}</div></li>`).join('')+'</ul>':'No medications found.'}
+async function run(){if(!selected){alert('Choose PDF first');return}try{progress(1,'PDF text');log('Starting extraction');let text=await pdfText(selected);let weak=text.trim().length<300;let mode=$('ocrMode').value;if(mode==='always'||(mode==='auto'&&weak)){log('Text layer weak. Running OCR.','warn');text+='\n'+await ocrPdf(selected)}$('text').textContent=text;progress(72,'Filtering');let chs=chunks(text);$('evidence').textContent=chs.join('\n\n--- CHUNK ---\n\n');progress(85,'Rules');result=extractRules(chs);render();progress(100,'Done');log('Done. Extracted '+result.medications.length+' medication candidate(s).','ok')}catch(e){progress(100,'Error');log(e.stack||e.message,'danger')}}
+$('drop').onclick=()=>$('file').click();$('file').onchange=e=>{selected=e.target.files[0];log('Selected '+selected.name)};['dragover','dragenter'].forEach(ev=>$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.add('over')}));['dragleave','drop'].forEach(ev=>$('drop').addEventListener(ev,e=>{e.preventDefault();$('drop').classList.remove('over')}));$('drop').addEventListener('drop',e=>{selected=e.dataTransfer.files[0];log('Selected '+selected.name)});$('run').onclick=run;$('clear').onclick=()=>location.reload();$('theme').onclick=()=>document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.querySelectorAll('.tabbar button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabbar button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('pre.tab').forEach(x=>x.hidden=true);$(b.dataset.tab).hidden=false});$('copyJson').onclick=()=>navigator.clipboard.writeText(JSON.stringify(result,null,2));$('downloadJson').onclick=()=>dl('result.json',JSON.stringify(result,null,2),'application/json');$('downloadCsv').onclick=()=>dl('result.csv',['name,dose,start_date,end_date,status,evidence_text',...result.medications.map(m=>[m.name,m.dose,m.start_date,m.end_date,m.status,m.evidence_text].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','))].join('\n'),'text/csv');function dl(n,t,type){let a=document.createElement('a'),u=URL.createObjectURL(new Blob([t],{type}));a.href=u;a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(u),500)}
+</script>
+</body>
+</html>'''
+
+          for name in ['index.html','extraktor_v3_ocr_full.html']:
+              (root/name).write_text(html, encoding='utf-8')
+
+          readme = '''# Xtraktor
+
+Browser-only PDF medication extraction prototype.
+
+Open `index.html` or use GitHub Pages.
+
+## Features
+
+- PDF.js text extraction
+- OCR fallback with Tesseract.js
+- Rules-only extraction mode
+- Evidence, JSON, raw text, CSV/JSON export
+- Colored status progress bar
+- Local processing indicator
+- Five synthetic sample PDFs for testing
+
+## Sample PDFs
+
+See `sample_pdfs/` and `dataset_manifest.json`.
+
+## GitHub Pages
+
+This repository includes a GitHub Pages workflow. Enable Pages with **Source: GitHub Actions**.
+
+## Clinical warning
+
+Prototype only. Not a medical device. Clinical review is mandatory.
+'''
+          (root/'README.md').write_text(readme, encoding='utf-8')
+
+          manifest = {
+            'version':'xtraktor-generated-assets',
+            'html':'index.html',
+            'samples':[
+              {'file':'01_text_current_medications.pdf','type':'text-layer','expected_medications':['Metformin','Atorvastatin','Ramipril','Aspirin']},
+              {'file':'02_text_stopped_medications.pdf','type':'text-layer','expected_medications':['Prednisone','Omeprazole','Ibuprofen','Warfarin']},
+              {'file':'03_text_german_mixed_medications.pdf','type':'text-layer','expected_medications':['Bisoprolol','Pantoprazol','Torasemid','Amlodipin']},
+              {'file':'04_image_only_scanned_med_list.pdf','type':'image-only','expected_medications':['Levothyroxine','Amlodipine','Apixaban']},
+              {'file':'05_image_only_discharge_scan.pdf','type':'image-only','expected_medications':['Insulin glargine','Metoprolol','Furosemide']}
+            ]
+          }
+          (root/'dataset_manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+
+          def text_pdf(path, title, lines):
+              c = canvas.Canvas(str(path), pagesize=A4)
+              w,h=A4
+              c.setFont('Helvetica-Bold', 16); c.drawString(22*mm, h-24*mm, title)
+              c.setFont('Helvetica', 11); y=h-38*mm
+              for line in lines:
+                  c.drawString(22*mm, y, line); y-=8*mm
+              c.showPage(); c.save()
+
+          text_pdf(samples/'01_text_current_medications.pdf','Current medication list',[
+            'Patient: Synthetic Example A', 'Current medications:',
+            '- Metformin 500 mg oral twice daily, ongoing',
+            '- Atorvastatin 20 mg oral nightly, ongoing',
+            '- Ramipril 5 mg oral daily, ongoing',
+            '- Aspirin 100 mg oral daily, ongoing'
+          ])
+          text_pdf(samples/'02_text_stopped_medications.pdf','Stopped medication history',[
+            'Patient: Synthetic Example B', 'Previous medications:',
+            '- Prednisone 10 mg oral daily, stopped 2024-03-15',
+            '- Omeprazole 20 mg oral daily, ended 2024-05',
+            '- Ibuprofen 400 mg oral as needed, discontinued 2023',
+            '- Warfarin 5 mg oral daily until 2022-11-30'
+          ])
+          text_pdf(samples/'03_text_german_mixed_medications.pdf','Gemischte Medikation',[
+            'Patient: Synthetisches Beispiel C', 'Dauermedikation / Austrittsmedikation:',
+            '- Bisoprolol 2.5 mg oral täglich, weiterführen',
+            '- Pantoprazol 40 mg oral morgens, bis 2025-01-31',
+            '- Torasemid 10 mg oral täglich, pausiert seit 2024-12-01',
+            '- Amlodipin 5 mg oral abends, aktuelle Medikation'
+          ])
+
+          def image_pdf(path, title, lines):
+              img = Image.new('RGB',(1240,1754),'white')
+              d = ImageDraw.Draw(img)
+              try: font_title=ImageFont.truetype('DejaVuSans-Bold.ttf',48); font=ImageFont.truetype('DejaVuSans.ttf',34)
+              except Exception: font_title=font=None
+              d.text((90,90),title,fill='black',font=font_title)
+              y=190
+              for line in lines:
+                  d.text((90,y),line,fill='black',font=font); y+=62
+              tmp = path.with_suffix('.jpg')
+              img.save(tmp, quality=90)
+              c = canvas.Canvas(str(path), pagesize=A4)
+              c.drawImage(str(tmp),0,0,width=A4[0],height=A4[1])
+              c.showPage(); c.save(); tmp.unlink()
+
+          image_pdf(samples/'04_image_only_scanned_med_list.pdf','Scanned medication list',[
+            'Image-only synthetic scan', 'Current medication:',
+            '- Levothyroxine 75 mcg oral daily, ongoing',
+            '- Amlodipine 5 mg oral daily, ongoing',
+            '- Apixaban 5 mg oral twice daily, ongoing'
+          ])
+          image_pdf(samples/'05_image_only_discharge_scan.pdf','Scanned discharge medication',[
+            'Image-only synthetic discharge note', 'Discharge medication:',
+            '- Insulin glargine 18 units SC nightly, ongoing',
+            '- Metoprolol 50 mg oral twice daily, ongoing',
+            '- Furosemide 40 mg oral daily until 2025-02-10'
+          ])
+
+          (docs/'DEVELOPMENT_NOTES.md').write_text('''# Development notes\n\nGenerated full assets via GitHub Actions.\n\nArchitecture: PDF.js extraction -> OCR fallback -> relevance/rules extraction -> review UI and exports.\n\nNext steps: split JS/CSS, add automated golden tests, add optional backend OCR/LLM service.\n''', encoding='utf-8')
+          PY
+
+      - name: Commit generated assets
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md index.html extraktor_v3_ocr_full.html dataset_manifest.json docs sample_pdfs
+          if git diff --cached --quiet; then
+            echo "No generated asset changes."
+          else
+            git commit -m "Generate full extractor app and sample PDFs"
+            git push
+          fi
