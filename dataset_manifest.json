@@ -1,0 +1,36 @@
+{
+  "version": "Extraktor V3 OCR",
+  "html": "extraktor_v3_ocr_full.html",
+  "samples": [
+    {
+      "file": "01_text_current_medications.pdf",
+      "type": "text-layer/OCRed",
+      "expected_medications": ["Metformin", "Atorvastatin", "Ramipril", "Aspirin"]
+    },
+    {
+      "file": "02_text_stopped_medications.pdf",
+      "type": "text-layer/OCRed",
+      "expected_medications": ["Prednisone", "Omeprazole", "Ibuprofen", "Warfarin"]
+    },
+    {
+      "file": "03_text_german_mixed_medications.pdf",
+      "type": "text-layer/OCRed",
+      "expected_medications": ["Bisoprolol", "Pantoprazol", "Torasemid", "Amlodipin"]
+    },
+    {
+      "file": "04_image_only_scanned_med_list.pdf",
+      "type": "image-only/scanned",
+      "expected_medications": ["Levothyroxine", "Amlodipine", "Apixaban"]
+    },
+    {
+      "file": "05_image_only_discharge_scan.pdf",
+      "type": "image-only/scanned",
+      "expected_medications": ["Insulin glargine", "Metoprolol", "Furosemide"]
+    }
+  ],
+  "notes": [
+    "Synthetic test data only.",
+    "The image-only PDFs are for OCR fallback testing.",
+    "Clinical review is mandatory."
+  ]
+}
