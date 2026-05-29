@@ -5,51 +5,32 @@
     {
       "file": "01_text_current_medications.pdf",
       "type": "text-layer/OCRed",
-      "expected_medications": [
-        "Metformin",
-        "Atorvastatin",
-        "Amlodipine"
-      ]
+      "expected_medications": ["Metformin", "Atorvastatin", "Ramipril", "Aspirin"]
     },
     {
       "file": "02_text_stopped_medications.pdf",
       "type": "text-layer/OCRed",
-      "expected_medications": [
-        "Aspirin",
-        "Ibuprofen",
-        "Pantoprazole"
-      ]
+      "expected_medications": ["Prednisone", "Omeprazole", "Ibuprofen", "Warfarin"]
     },
     {
       "file": "03_text_german_mixed_medications.pdf",
       "type": "text-layer/OCRed",
-      "expected_medications": [
-        "Bisoprolol",
-        "Torasemid",
-        "Diclofenac"
-      ]
+      "expected_medications": ["Bisoprolol", "Pantoprazol", "Torasemid", "Amlodipin"]
     },
     {
       "file": "04_image_only_scanned_med_list.pdf",
       "type": "image-only/scanned",
-      "expected_medications": [
-        "Levothyroxine",
-        "Omeprazole",
-        "Insulin glargine"
-      ]
+      "expected_medications": ["Levothyroxine", "Amlodipine", "Apixaban"]
     },
     {
       "file": "05_image_only_discharge_scan.pdf",
       "type": "image-only/scanned",
-      "expected_medications": [
-        "Ramipril",
-        "Furosemide",
-        "Apixaban"
-      ]
+      "expected_medications": ["Insulin glargine", "Metoprolol", "Furosemide"]
     }
   ],
   "notes": [
-    "Image-only PDFs intentionally have no text layer. OCR fallback should activate when OCR fallback is Auto or Always.",
-    "Synthetic dataset only. Not real patient data."
+    "Synthetic test data only.",
+    "The image-only PDFs are for OCR fallback testing.",
+    "Clinical review is mandatory."
   ]
 }
