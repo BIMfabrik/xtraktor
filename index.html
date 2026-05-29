@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Xtraktor</title>
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0f172a;color:#e5e7eb;line-height:1.5}
+    main{max-width:920px;margin:0 auto;padding:32px 20px}
+    .card{background:#111827;border:1px solid #334155;border-radius:16px;padding:18px;margin:16px 0}
+    code,pre{background:#020617;border:1px solid #334155;border-radius:10px;padding:2px 6px;color:#93c5fd}
+    pre{padding:12px;overflow:auto}
+    a{color:#93c5fd}
+    .warn{border-left:4px solid #f59e0b;padding-left:12px;color:#fde68a}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Xtraktor</h1>
+  <p>Browser-only PDF medication extraction prototype with OCR fallback, rules extraction, Chrome Built-in AI/WebLLM paths, evidence view, exports, and sample-PDF test dataset.</p>
+
+  <section class="card">
+    <h2>Status</h2>
+    <p>The full single-file app and sample PDFs were generated locally. This repository has been initialized through the GitHub connector with source documentation and project metadata.</p>
+    <p class="warn">The GitHub connector used here accepts text file writes reliably, but not direct binary PDF upload from local files. Push the prepared local repo ZIP with normal Git to include the full HTML and sample PDFs.</p>
+  </section>
+
+  <section class="card">
+    <h2>Expected repository contents after local push</h2>
+<pre>index.html
+extraktor_v3_ocr_full.html
+README.md
+LICENSE
+dataset_manifest.json
+docs/DEVELOPMENT_NOTES.md
+sample_pdfs/01_text_current_medications.pdf
+sample_pdfs/02_text_stopped_medications.pdf
+sample_pdfs/03_text_german_mixed_medications.pdf
+sample_pdfs/04_image_only_scanned_med_list.pdf
+sample_pdfs/05_image_only_discharge_scan.pdf</pre>
+  </section>
+
+  <section class="card">
+    <h2>Push command</h2>
+<pre>unzip extraction_repo.zip
+cd extraction
+git remote remove origin 2&gt;/dev/null || true
+git remote add origin git@github.com:BIMfabrik/xtraktor.git
+git branch -M main
+git push -u origin main</pre>
+  </section>
+
+  <section class="card">
+    <h2>Clinical warning</h2>
+    <p>This is a prototype. It is not a medical device. Clinical review is mandatory before using extracted data.</p>
+  </section>
+</main>
+</body>
+</html>
